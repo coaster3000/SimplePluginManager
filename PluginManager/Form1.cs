@@ -18,20 +18,21 @@ namespace PluginManager
         private String[] files = null;
 
         private String path = null;
+        private String lastPath = null;
 
         public MainWindow()
         {
             InitializeComponent();
             try
             {
-                path = System.IO.File.ReadAllText(Environment.CurrentDirectory.ToString() + "currdir.dat");
-
+                path = System.IO.File.ReadAllText(Environment.CurrentDirectory + "\\currdir.dat");
+                btn_rename.Enabled = !listView1.MultiSelect;
             }
             catch (Exception err)
             {
-                fbd1.SelectedPath = Environment.SpecialFolder.Desktop.ToString();
-                path = fbd1.SelectedPath;
+                path = null;
             }
+
             
         }
 
@@ -41,7 +42,7 @@ namespace PluginManager
         }
         private void OnFormClosing(object sender, EventArgs e)
         {
-            System.IO.File.WriteAllText(Environment.CurrentDirectory.ToString() + "currdir.dat", path);
+            System.IO.File.WriteAllText(Environment.CurrentDirectory + "\\currdir.dat", path);
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -51,11 +52,15 @@ namespace PluginManager
             fbd1.ShowNewFolderButton = false;
             fbd1.Description = "Select a folder to manager.";
 
-            fbd1.ShowDialog();
-            path = fbd1.SelectedPath;
+            if (!selectPath())
+            {
+                this.Close();
+
+                this.Dispose();
+                Application.Exit();
+            }
 
             windowNameUpdate(path);
-            updateList();
         }
 
         private void btn_selectFolder_Click(object sender, EventArgs e)
@@ -63,15 +68,26 @@ namespace PluginManager
             selectPath();
         }
 
-        private void selectPath()
+        private bool selectPath()
         {
-            fbd1.ShowDialog();
+            DialogResult r = fbd1.ShowDialog();
+            if (r == DialogResult.Cancel && path == null)
+                return false;
+
+            lastPath = path;
             path = fbd1.SelectedPath;
-            windowNameUpdate(path);
-            updateList();
+
+            bool update = updateList();
+            if (lastPath == path && !update)
+                return false;
+            else
+            {
+                windowNameUpdate(path);
+                return update;
+            }
         }
 
-        private void updateList()
+        private bool updateList()
         {
             try
             {
@@ -94,17 +110,30 @@ namespace PluginManager
                 }
                 if (listView1.Items.Count == 0)
                 {
-                    MessageBox.Show("There were no files found that matched plugin management.", "Invalid Folder", MessageBoxButtons.OK, MessageBoxIcon.Stop);
-                    selectPath();
+                    DialogResult r = MessageBox.Show("There were no files found that matched plugin management.", "Invalid Folder", MessageBoxButtons.RetryCancel, MessageBoxIcon.Stop);
+                    if (r == DialogResult.Retry)
+                        return selectPath();
+                    else if (r == DialogResult.Cancel)
+                    {
+                        return false;
+                    }
                 }
+                return true;
             }
             catch (System.IO.DirectoryNotFoundException err)
             {
-                MessageBox.Show("Warning you must specify a directory!", "Sorry!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                selectPath();
-                return;
+                DialogResult r = MessageBox.Show("That directory was not found!", "Sorry!", MessageBoxButtons.RetryCancel, MessageBoxIcon.Warning);
+                if (r == DialogResult.Retry)
+                    return selectPath();
+                else if (r == DialogResult.Cancel)
+                {
+                    if (path == null || path.Equals(""))
+                        return false;
+                    else
+                        return true;
+                }
             }
-            
+            return false;
         }
 
         private void listView1_SelectedIndexChanged(object sender, EventArgs e)
